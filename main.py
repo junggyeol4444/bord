@@ -167,6 +167,7 @@ class SettingsDialog(tk.Toplevel):
             ("칸 개수 (최소 4):", 'cells', 10),
             ("문제 칸 번호 (쉼표 구분):", 'question_cells_str', 20),
             ("황금 열쇠 칸 번호 (쉼표 구분):", 'golden_key_cells_str', 20),
+            ("문제를 푸는 칸 번호 (쉼표 구분):", 'solve_cells_str', 20),
             ("주사위 최대값:", 'dice_max', 10),
             ("목표 바퀴 (0=무제한):", 'target_laps', 10),
             ("보드 제목 (윗줄):", 'board_title', 15),
@@ -180,6 +181,8 @@ class SettingsDialog(tk.Toplevel):
                 val = ','.join(str(x) for x in s.get('question_cells', [3, 7, 11, 15]))
             elif key == 'golden_key_cells_str':
                 val = ','.join(str(x) for x in s.get('golden_key_cells', []))
+            elif key == 'solve_cells_str':
+                val = ','.join(str(x) for x in s.get('solve_cells', []))
             else:
                 val = str(s.get(key, ''))
             sv = tk.StringVar(value=val)
@@ -244,9 +247,20 @@ class SettingsDialog(tk.Toplevel):
             except ValueError as e:
                 messagebox.showerror("입력 오류", str(e)); return
 
+        scstr = self.vars['solve_cells_str'].get().strip()
+        solve_cells = []
+        if scstr:
+            try:
+                solve_cells = [int(x.strip()) for x in scstr.split(',') if x.strip()]
+                for sc in solve_cells:
+                    if sc < 0 or sc >= cells:
+                        raise ValueError("문제를 푸는 칸 번호 " + str(sc) + "는 범위 밖")
+            except ValueError as e:
+                messagebox.showerror("입력 오류", str(e)); return
+
         self.result = {
             'players': players, 'cells': cells, 'question_cells': question_cells,
-            'golden_key_cells': golden_key_cells,
+            'golden_key_cells': golden_key_cells, 'solve_cells': solve_cells,
             'dice_max': dice_max, 'target_laps': target_laps,
             'question_file': self.var_qfile.get(),
             'board_title': self.vars['board_title'].get(),
@@ -265,7 +279,7 @@ class BoardGameApp:
 
         self.settings = {
             'players': 2, 'cells': 20, 'question_cells': [3, 7, 11, 15],
-            'golden_key_cells': [5, 13],
+            'golden_key_cells': [5, 13], 'solve_cells': [],
             'dice_max': 6, 'target_laps': 3, 'question_file': 'questions.txt',
             'board_title': '부루마블', 'board_subtitle': '보드게임',
         }
@@ -564,9 +578,12 @@ class BoardGameApp:
         pos = self.player_positions[self.current_player]
         qcells = set(self.settings['question_cells'])
         gkcells = set(self.settings.get('golden_key_cells', []))
+        scells = set(self.settings.get('solve_cells', []))
         self.btn_question.config(state='normal' if pos in qcells else 'disabled')
         if pos in gkcells:
             self.root.after(GOLDEN_KEY_POPUP_DELAY_MS, self._show_golden_key_event)
+        if pos in scells:
+            self.root.after(GOLDEN_KEY_POPUP_DELAY_MS, self.show_question)
 
     def _show_golden_key_event(self):
         event = random.choice(GOLDEN_KEY_EVENTS)
@@ -659,6 +676,7 @@ class BoardGameApp:
         total = self.settings['cells']
         qcells = set(self.settings['question_cells'])
         gkcells = set(self.settings.get('golden_key_cells', []))
+        scells = set(self.settings.get('solve_cells', []))
 
         margin = 15
         natural_rects = calc_board_positions(
@@ -696,6 +714,8 @@ class BoardGameApp:
                 fill, ol = '#FF6B6B', '#CC0000'
             elif i in gkcells:
                 fill, ol = '#FFB347', '#FF8C00'
+            elif i in scells:
+                fill, ol = '#6BB5FF', '#1A6BBF'
             else:
                 fill, ol = '#FFFFFF', '#999999'
 
@@ -714,6 +734,9 @@ class BoardGameApp:
             elif i in gkcells:
                 self.canvas.create_text(x + w / 2, y + h - w * 0.15,
                                          text="황금열쇠", font=(FONT_NAME, fs_lbl, 'bold'), fill='#CC6600')
+            elif i in scells:
+                self.canvas.create_text(x + w / 2, y + h - w * 0.15,
+                                         text="문제풀기", font=(FONT_NAME, fs_lbl, 'bold'), fill='#1A6BBF')
 
         # 장기말
         pos_groups = {}
