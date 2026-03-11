@@ -279,7 +279,7 @@ class BoardGameApp:
 
         self.settings = {
             'players': 2, 'cells': 20, 'question_cells': [3, 7, 11, 15],
-            'golden_key_cells': [5, 13], 'solve_cells': [],
+            'golden_key_cells': [5, 13], 'solve_cells': [2, 9],
             'dice_max': 6, 'target_laps': 3, 'question_file': 'questions.txt',
             'board_title': '부루마블', 'board_subtitle': '보드게임',
         }
@@ -578,12 +578,9 @@ class BoardGameApp:
         pos = self.player_positions[self.current_player]
         qcells = set(self.settings['question_cells'])
         gkcells = set(self.settings.get('golden_key_cells', []))
-        scells = set(self.settings.get('solve_cells', []))
         self.btn_question.config(state='normal' if pos in qcells else 'disabled')
         if pos in gkcells:
             self.root.after(GOLDEN_KEY_POPUP_DELAY_MS, self._show_golden_key_event)
-        if pos in scells:
-            self.root.after(GOLDEN_KEY_POPUP_DELAY_MS, self.show_question)
 
     def _show_golden_key_event(self):
         event = random.choice(GOLDEN_KEY_EVENTS)
