@@ -280,6 +280,9 @@ class BoardGameApp:
         self.winner = None
         self.cell_rects = []
         self.zoom_level = 1.0
+        self.pan_x = 0.0
+        self.pan_y = 0.0
+        self._drag_start = None
         self.dice_animating = False
 
         self._build_ui()
@@ -301,6 +304,12 @@ class BoardGameApp:
         self.canvas.bind('<Control-MouseWheel>', self._on_zoom)          # Windows
         self.canvas.bind('<Control-Button-4>', self._on_zoom_linux_up)   # Linux
         self.canvas.bind('<Control-Button-5>', self._on_zoom_linux_down) # Linux
+
+        # 마우스 드래그 패닝 (우클릭 또는 휠 클릭)
+        self.canvas.bind('<Button-2>', self._on_pan_start)
+        self.canvas.bind('<B2-Motion>', self._on_pan_drag)
+        self.canvas.bind('<Button-3>', self._on_pan_start)
+        self.canvas.bind('<B3-Motion>', self._on_pan_drag)
 
         # 패널
         self.panel_visible = True
@@ -390,6 +399,19 @@ class BoardGameApp:
         self.lbl_zoom.config(text="줌: " + str(int(self.zoom_level * 100)) + "%")
         self.draw_board()
 
+    def _on_pan_start(self, event):
+        self._drag_start = (event.x, event.y)
+
+    def _on_pan_drag(self, event):
+        if self._drag_start is None:
+            return
+        dx = event.x - self._drag_start[0]
+        dy = event.y - self._drag_start[1]
+        self.pan_x += dx
+        self.pan_y += dy
+        self._drag_start = (event.x, event.y)
+        self.draw_board()
+
     def _toggle_panel(self):
         if self.panel_visible:
             self.left_panel.place_forget()
@@ -412,6 +434,8 @@ class BoardGameApp:
         self.dice_result = 0
         self.manual_mode = False
         self.winner = None
+        self.pan_x = 0.0
+        self.pan_y = 0.0
         self.lbl_manual.config(text="")
         self.questions = load_questions(s['question_file'])
         self.used_question_indices = []
@@ -458,7 +482,7 @@ class BoardGameApp:
         ch = self.canvas.winfo_height()
         dice_size = min(cw, ch) * 0.12 * self.zoom_level
         dice_size = max(40, min(dice_size, 120))
-        draw_dice_face(self.canvas, cw / 2, ch / 2, dice_size, value, tag='dice')
+        draw_dice_face(self.canvas, cw / 2 + self.pan_x, ch / 2 + self.pan_y, dice_size, value, tag='dice')
 
     def _update_dice_label(self):
         if self.dice_result > 0:
@@ -637,10 +661,32 @@ class BoardGameApp:
         gkcells = set(self.settings.get('golden_key_cells', []))
 
         margin = 15
-        max_cs = 200 * self.zoom_level
-        self.cell_rects = calc_board_positions(
-            total, margin, margin, cw - margin * 2, ch - margin * 2, max_cell_size=max_cs
+        natural_rects = calc_board_positions(
+            total, 0, 0, cw - margin * 2, ch - margin * 2, max_cell_size=200
         )
+        if not natural_rects:
+            return
+
+        # Find natural board center to scale around
+        nat_min_x = min(r[0] for r in natural_rects)
+        nat_min_y = min(r[1] for r in natural_rects)
+        nat_max_x = max(r[0] + r[2] for r in natural_rects)
+        nat_max_y = max(r[1] + r[3] for r in natural_rects)
+        nat_cx = (nat_min_x + nat_max_x) / 2
+        nat_cy = (nat_min_y + nat_max_y) / 2
+
+        # Canvas center
+        canvas_cx = cw / 2
+        canvas_cy = ch / 2
+
+        # Apply zoom and pan offset
+        self.cell_rects = []
+        for (rx, ry, rw, rh) in natural_rects:
+            new_x = (rx - nat_cx) * self.zoom_level + canvas_cx + self.pan_x
+            new_y = (ry - nat_cy) * self.zoom_level + canvas_cy + self.pan_y
+            new_w = rw * self.zoom_level
+            new_h = rh * self.zoom_level
+            self.cell_rects.append((new_x, new_y, new_w, new_h))
 
         # 칸 그리기
         for i, (x, y, w, h) in enumerate(self.cell_rects):
@@ -703,11 +749,13 @@ class BoardGameApp:
             t2 = self.settings.get('board_subtitle', '보드게임')
             fs1 = max(14, int(min(cw, ch) * 0.04 * self.zoom_level))
             fs2 = max(10, int(min(cw, ch) * 0.025 * self.zoom_level))
+            board_cx = cw / 2 + self.pan_x
+            board_cy = ch / 2 + self.pan_y
             if t1:
-                self.canvas.create_text(cw / 2, ch / 2 - fs1 * 0.6, text=t1,
+                self.canvas.create_text(board_cx, board_cy - fs1 * 0.6, text=t1,
                                          font=(FONT_NAME, fs1, 'bold'), fill='#8B7355')
             if t2:
-                self.canvas.create_text(cw / 2, ch / 2 + fs2 * 0.8, text=t2,
+                self.canvas.create_text(board_cx, board_cy + fs2 * 0.8, text=t2,
                                          font=(FONT_NAME, fs2), fill='#A08060')
 
 
