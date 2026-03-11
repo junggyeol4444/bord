@@ -52,19 +52,7 @@ def get_player_color(idx):
 
 FONT_NAME = 'Malgun Gothic' if sys.platform == 'win32' else 'sans-serif'
 
-GOLDEN_KEY_EVENTS = [
-    "앞으로 3칸 이동!",
-    "뒤로 2칸 이동!",
-    "한 턴 쉬기!",
-    "주사위를 한 번 더 굴릴 수 있는 보너스 턴!",
-    "출발지로 돌아가기!",
-    "앞으로 5칸 이동!",
-    "뒤로 3칸 이동!",
-    "행운의 칸! 원하는 칸으로 이동하세요.",
-    "다음 문제 칸을 건너뜁니다!",
-    "모든 플레이어가 이 칸으로 이동!",
-]
-GOLDEN_KEY_POPUP_DELAY_MS = 300
+
 
 
 # ─── 주사위 면 그리기 (캔버스에 직접) ───
@@ -629,20 +617,15 @@ class BoardGameApp:
         pos = self.player_positions[self.current_player]
         qcells = set(self.settings['question_cells'])
         gkcells = set(self.settings.get('golden_key_cells', []))
+        penalty_cells = set(self.settings.get('penalty_cells', []))
+        solve_cells = set(self.settings.get('solve_cells', []))
         self.btn_question.config(state='normal' if pos in qcells else 'disabled')
         if pos in gkcells:
-            self.root.after(GOLDEN_KEY_POPUP_DELAY_MS, self._show_golden_key_event)
-
-    def _show_golden_key_event(self):
-        event = random.choice(GOLDEN_KEY_EVENTS)
-        win = tk.Toplevel(self.root)
-        win.title("황금 열쇠")
-        win.geometry("400x220")
-        win.resizable(False, False)
-        win.grab_set()
-        tk.Label(win, text="[ 황금 열쇠 ]", font=(FONT_NAME, 16, 'bold'), fg='#FF8C00').pack(pady=(20, 5))
-        tk.Label(win, text=event, font=(FONT_NAME, 12), wraplength=360).pack(padx=20, pady=10)
-        tk.Button(win, text="확인", command=win.destroy, width=10).pack(pady=10)
+            messagebox.showinfo("황금 열쇠", "황금 열쇠 칸에 도착했습니다!\n오프라인에서 황금 열쇠 이벤트를 진행하세요.")
+        elif pos in penalty_cells:
+            messagebox.showinfo("벌칙", "벌칙 칸에 도착했습니다!\n오프라인에서 벌칙을 수행하세요.")
+        elif pos in solve_cells:
+            messagebox.showinfo("미션 수행", "미션 수행 칸에 도착했습니다!\n오프라인에서 미션을 수행하세요.")
 
     def show_question(self):
         if not self.questions:
