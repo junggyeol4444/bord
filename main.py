@@ -541,8 +541,6 @@ class BoardGameApp:
             if clicked < old or (clicked == 0 and old != 0):
                 self.player_laps[p] += 1
             self.player_positions[p] = clicked
-            self.manual_mode = False
-            self.lbl_manual.config(text="")
             self._update_laps()
             self._check_cell_action()
             self.draw_board()
