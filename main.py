@@ -621,11 +621,11 @@ class BoardGameApp:
         solve_cells = set(self.settings.get('solve_cells', []))
         self.btn_question.config(state='normal' if pos in qcells else 'disabled')
         if pos in gkcells:
-            messagebox.showinfo("황금 열쇠", "황금 열쇠 칸에 도착했습니다!\n오프라인에서 황금 열쇠 이벤트를 진행하세요.")
+            messagebox.showinfo("황금 열쇠", "황금 열쇠 칸에 도착했습니다!")
         elif pos in penalty_cells:
-            messagebox.showinfo("벌칙", "벌칙 칸에 도착했습니다!\n오프라인에서 벌칙을 수행하세요.")
+            messagebox.showinfo("벌칙", "벌칙 칸에 도착했습니다!")
         elif pos in solve_cells:
-            messagebox.showinfo("미션 수행", "미션 수행 칸에 도착했습니다!\n오프라인에서 미션을 수행하세요.")
+            messagebox.showinfo("미션 수행", "미션 수행 칸에 도착했습니다!")
 
     def show_question(self):
         if not self.questions:
