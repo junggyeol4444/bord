@@ -168,7 +168,10 @@ class SettingsDialog(tk.Toplevel):
             ("문제 칸 번호 (쉼표 구분):", 'question_cells_str', 20),
             ("황금 열쇠 칸 번호 (쉼표 구분):", 'golden_key_cells_str', 20),
             ("문제를 푸는 칸 번호 (쉼표 구분):", 'solve_cells_str', 20),
+            ("벌칙 칸 번호 (쉼표 구분):", 'penalty_cells_str', 20),
+            ("무인도 칸 번호 (쉼표 구분):", 'island_cells_str', 20),
             ("주사위 최대값:", 'dice_max', 10),
+            ("주사위 개수:", 'dice_count', 10),
             ("목표 바퀴 (0=무제한):", 'target_laps', 10),
             ("보드 제목 (윗줄):", 'board_title', 15),
             ("보드 제목 (아랫줄):", 'board_subtitle', 15),
@@ -183,6 +186,10 @@ class SettingsDialog(tk.Toplevel):
                 val = ','.join(str(x) for x in s.get('golden_key_cells', []))
             elif key == 'solve_cells_str':
                 val = ','.join(str(x) for x in s.get('solve_cells', []))
+            elif key == 'penalty_cells_str':
+                val = ','.join(str(x) for x in s.get('penalty_cells', []))
+            elif key == 'island_cells_str':
+                val = ','.join(str(x) for x in s.get('island_cells', []))
             else:
                 val = str(s.get(key, ''))
             sv = tk.StringVar(value=val)
@@ -216,11 +223,13 @@ class SettingsDialog(tk.Toplevel):
             players = int(self.vars['players'].get())
             cells = int(self.vars['cells'].get())
             dice_max = int(self.vars['dice_max'].get())
+            dice_count = int(self.vars['dice_count'].get())
             target_laps = int(self.vars['target_laps'].get())
             if players < 1: raise ValueError("플레이어 수는 1 이상")
             if cells < 4: raise ValueError("칸 개수는 4 이상")
             if cells % 2 != 0: cells += 1
             if dice_max < 1: raise ValueError("주사위 최대값은 1 이상")
+            if dice_count < 1: raise ValueError("주사위 개수는 1 이상")
             if target_laps < 0: raise ValueError("목표 바퀴는 0 이상")
         except ValueError as e:
             messagebox.showerror("입력 오류", str(e)); return
@@ -258,10 +267,33 @@ class SettingsDialog(tk.Toplevel):
             except ValueError as e:
                 messagebox.showerror("입력 오류", str(e)); return
 
+        pcstr = self.vars['penalty_cells_str'].get().strip()
+        penalty_cells = []
+        if pcstr:
+            try:
+                penalty_cells = [int(x.strip()) for x in pcstr.split(',') if x.strip()]
+                for pc in penalty_cells:
+                    if pc < 0 or pc >= cells:
+                        raise ValueError("벌칙 칸 번호 " + str(pc) + "는 범위 밖")
+            except ValueError as e:
+                messagebox.showerror("입력 오류", str(e)); return
+
+        icstr = self.vars['island_cells_str'].get().strip()
+        island_cells = []
+        if icstr:
+            try:
+                island_cells = [int(x.strip()) for x in icstr.split(',') if x.strip()]
+                for ic in island_cells:
+                    if ic < 0 or ic >= cells:
+                        raise ValueError("무인도 칸 번호 " + str(ic) + "는 범위 밖")
+            except ValueError as e:
+                messagebox.showerror("입력 오류", str(e)); return
+
         self.result = {
             'players': players, 'cells': cells, 'question_cells': question_cells,
             'golden_key_cells': golden_key_cells, 'solve_cells': solve_cells,
-            'dice_max': dice_max, 'target_laps': target_laps,
+            'penalty_cells': penalty_cells, 'island_cells': island_cells,
+            'dice_max': dice_max, 'dice_count': dice_count, 'target_laps': target_laps,
             'question_file': self.var_qfile.get(),
             'board_title': self.vars['board_title'].get(),
             'board_subtitle': self.vars['board_subtitle'].get(),
@@ -280,7 +312,9 @@ class BoardGameApp:
         self.settings = {
             'players': 2, 'cells': 20, 'question_cells': [3, 7, 11, 15],
             'golden_key_cells': [5, 13], 'solve_cells': [2, 9],
-            'dice_max': 6, 'target_laps': 3, 'question_file': 'questions.txt',
+            'penalty_cells': [], 'island_cells': [],
+            'dice_max': 6, 'dice_count': 1, 'target_laps': 3,
+            'question_file': 'questions.txt',
             'board_title': '부루마블', 'board_subtitle': '보드게임',
         }
 
@@ -288,6 +322,7 @@ class BoardGameApp:
         self.player_laps = []
         self.current_player = 0
         self.dice_result = 0
+        self.dice_values = []
         self.manual_mode = False
         self.questions = []
         self.used_question_indices = []
@@ -446,6 +481,7 @@ class BoardGameApp:
         self.player_laps = [0] * s['players']
         self.current_player = 0
         self.dice_result = 0
+        self.dice_values = []
         self.manual_mode = False
         self.winner = None
         self.pan_x = 0.0
@@ -476,31 +512,46 @@ class BoardGameApp:
         self._dice_animate(0)
 
     def _dice_animate(self, step):
+        dice_count = self.settings.get('dice_count', 1)
         if step < 12:
             # 랜덤 값으로 빠르게 교체
-            temp_val = random.randint(1, self.settings['dice_max'])
-            self._draw_dice_center(temp_val)
+            temp_vals = [random.randint(1, self.settings['dice_max']) for _ in range(dice_count)]
+            self._draw_dice_center(temp_vals)
             delay = 50 + step * 20  # 점점 느려짐
             self.root.after(delay, self._dice_animate, step + 1)
         else:
             # 최종 결과
-            self.dice_result = random.randint(1, self.settings['dice_max'])
-            self._draw_dice_center(self.dice_result)
+            self.dice_values = [random.randint(1, self.settings['dice_max']) for _ in range(dice_count)]
+            self.dice_result = sum(self.dice_values)
+            self._draw_dice_center(self.dice_values)
             self._update_dice_label()
             self.dice_animating = False
 
-    def _draw_dice_center(self, value):
+    def _draw_dice_center(self, values):
         """보드판 중앙에 주사위를 그린다"""
         self.canvas.delete('dice')
         cw = self.canvas.winfo_width()
         ch = self.canvas.winfo_height()
         dice_size = min(cw, ch) * 0.12 * self.zoom_level
         dice_size = max(40, min(dice_size, 120))
-        draw_dice_face(self.canvas, cw / 2 + self.pan_x, ch / 2 + self.pan_y, dice_size, value, tag='dice')
+        if not isinstance(values, (list, tuple)):
+            values = [values]
+        count = len(values)
+        gap = dice_size * 0.2
+        total_w = count * dice_size + (count - 1) * gap
+        start_x = cw / 2 + self.pan_x - total_w / 2 + dice_size / 2
+        cy = ch / 2 + self.pan_y
+        for i, v in enumerate(values):
+            cx = start_x + i * (dice_size + gap)
+            draw_dice_face(self.canvas, cx, cy, dice_size, v, tag='dice')
 
     def _update_dice_label(self):
         if self.dice_result > 0:
-            self.lbl_dice.config(text="결과: " + str(self.dice_result))
+            if len(self.dice_values) > 1:
+                parts = '+'.join(str(v) for v in self.dice_values)
+                self.lbl_dice.config(text="결과: " + parts + " = " + str(self.dice_result))
+            else:
+                self.lbl_dice.config(text="결과: " + str(self.dice_result))
         else:
             self.lbl_dice.config(text="결과: -")
 
@@ -519,6 +570,7 @@ class BoardGameApp:
             new_pos = new_pos % tc
         self.player_positions[p] = new_pos
         self.dice_result = 0
+        self.dice_values = []
         self._update_dice_label()
         self._update_laps()
         self._check_cell_action()
@@ -557,6 +609,7 @@ class BoardGameApp:
             return
         self.current_player = (self.current_player + 1) % self.settings['players']
         self.dice_result = 0
+        self.dice_values = []
         self.manual_mode = False
         self.lbl_manual.config(text="")
         self._update_turn()
@@ -672,6 +725,8 @@ class BoardGameApp:
         qcells = set(self.settings['question_cells'])
         gkcells = set(self.settings.get('golden_key_cells', []))
         scells = set(self.settings.get('solve_cells', []))
+        pcells = set(self.settings.get('penalty_cells', []))
+        icells = set(self.settings.get('island_cells', []))
 
         margin = 15
         natural_rects = calc_board_positions(
@@ -711,6 +766,10 @@ class BoardGameApp:
                 fill, ol = '#FFB347', '#FF8C00'
             elif i in scells:
                 fill, ol = '#6BB5FF', '#1A6BBF'
+            elif i in pcells:
+                fill, ol = '#D580FF', '#9B30FF'
+            elif i in icells:
+                fill, ol = '#98D8A0', '#3CB371'
             else:
                 fill, ol = '#FFFFFF', '#999999'
 
@@ -732,6 +791,12 @@ class BoardGameApp:
             elif i in scells:
                 self.canvas.create_text(x + w / 2, y + h - w * 0.15,
                                          text="문제풀기", font=(FONT_NAME, fs_lbl, 'bold'), fill='#1A6BBF')
+            elif i in pcells:
+                self.canvas.create_text(x + w / 2, y + h - w * 0.15,
+                                         text="벌칙", font=(FONT_NAME, fs_lbl, 'bold'), fill='#9B30FF')
+            elif i in icells:
+                self.canvas.create_text(x + w / 2, y + h - w * 0.15,
+                                         text="무인도", font=(FONT_NAME, fs_lbl, 'bold'), fill='#3CB371')
 
         # 장기말
         pos_groups = {}
@@ -761,7 +826,7 @@ class BoardGameApp:
 
         # 중앙: 주사위 결과가 있으면 주사위, 없으면 제목
         if self.dice_result > 0:
-            self._draw_dice_center(self.dice_result)
+            self._draw_dice_center(self.dice_values if self.dice_values else [self.dice_result])
         else:
             t1 = self.settings.get('board_title', '부루마블')
             t2 = self.settings.get('board_subtitle', '보드게임')
