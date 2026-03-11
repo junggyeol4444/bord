@@ -167,7 +167,7 @@ class SettingsDialog(tk.Toplevel):
             ("칸 개수 (최소 4):", 'cells', 10),
             ("문제 칸 번호 (쉼표 구분):", 'question_cells_str', 20),
             ("황금 열쇠 칸 번호 (쉼표 구분):", 'golden_key_cells_str', 20),
-            ("문제를 푸는 칸 번호 (쉼표 구분):", 'solve_cells_str', 20),
+            ("미션 수행 칸 번호 (쉼표 구분):", 'solve_cells_str', 20),
             ("벌칙 칸 번호 (쉼표 구분):", 'penalty_cells_str', 20),
             ("무인도 칸 번호 (쉼표 구분):", 'island_cells_str', 20),
             ("주사위 최대값:", 'dice_max', 10),
@@ -263,7 +263,7 @@ class SettingsDialog(tk.Toplevel):
                 solve_cells = [int(x.strip()) for x in scstr.split(',') if x.strip()]
                 for sc in solve_cells:
                     if sc < 0 or sc >= cells:
-                        raise ValueError("문제를 푸는 칸 번호 " + str(sc) + "는 범위 밖")
+                        raise ValueError("미션 수행 칸 번호 " + str(sc) + "는 범위 밖")
             except ValueError as e:
                 messagebox.showerror("입력 오류", str(e)); return
 
@@ -790,7 +790,7 @@ class BoardGameApp:
                                          text="황금열쇠", font=(FONT_NAME, fs_lbl, 'bold'), fill='#CC6600')
             elif i in scells:
                 self.canvas.create_text(x + w / 2, y + h - w * 0.15,
-                                         text="문제풀기", font=(FONT_NAME, fs_lbl, 'bold'), fill='#1A6BBF')
+                                         text="미션수행", font=(FONT_NAME, fs_lbl, 'bold'), fill='#1A6BBF')
             elif i in pcells:
                 self.canvas.create_text(x + w / 2, y + h - w * 0.15,
                                          text="벌칙", font=(FONT_NAME, fs_lbl, 'bold'), fill='#9B30FF')
