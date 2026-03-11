@@ -52,6 +52,20 @@ def get_player_color(idx):
 
 FONT_NAME = 'Malgun Gothic' if sys.platform == 'win32' else 'sans-serif'
 
+GOLDEN_KEY_EVENTS = [
+    "앞으로 3칸 이동!",
+    "뒤로 2칸 이동!",
+    "한 턴 쉬기!",
+    "주사위를 한 번 더 굴릴 수 있는 보너스 턴!",
+    "출발지로 돌아가기!",
+    "앞으로 5칸 이동!",
+    "뒤로 3칸 이동!",
+    "행운의 칸! 원하는 칸으로 이동하세요.",
+    "다음 문제 칸을 건너뜁니다!",
+    "모든 플레이어가 이 칸으로 이동!",
+]
+GOLDEN_KEY_POPUP_DELAY_MS = 300
+
 
 # ─── 주사위 면 그리기 (캔버스에 직접) ───
 DICE_DOTS = {
@@ -152,6 +166,7 @@ class SettingsDialog(tk.Toplevel):
             ("플레이어 수:", 'players', 10),
             ("칸 개수 (최소 4):", 'cells', 10),
             ("문제 칸 번호 (쉼표 구분):", 'question_cells_str', 20),
+            ("황금 열쇠 칸 번호 (쉼표 구분):", 'golden_key_cells_str', 20),
             ("주사위 최대값:", 'dice_max', 10),
             ("목표 바퀴 (0=무제한):", 'target_laps', 10),
             ("보드 제목 (윗줄):", 'board_title', 15),
@@ -163,6 +178,8 @@ class SettingsDialog(tk.Toplevel):
             tk.Label(frame, text=label, font=(FONT_NAME, 10)).grid(row=i, column=0, sticky='w', pady=4)
             if key == 'question_cells_str':
                 val = ','.join(str(x) for x in s.get('question_cells', [3, 7, 11, 15]))
+            elif key == 'golden_key_cells_str':
+                val = ','.join(str(x) for x in s.get('golden_key_cells', []))
             else:
                 val = str(s.get(key, ''))
             sv = tk.StringVar(value=val)
@@ -216,8 +233,20 @@ class SettingsDialog(tk.Toplevel):
             except ValueError as e:
                 messagebox.showerror("입력 오류", str(e)); return
 
+        gkstr = self.vars['golden_key_cells_str'].get().strip()
+        golden_key_cells = []
+        if gkstr:
+            try:
+                golden_key_cells = [int(x.strip()) for x in gkstr.split(',') if x.strip()]
+                for gkc in golden_key_cells:
+                    if gkc < 0 or gkc >= cells:
+                        raise ValueError("황금 열쇠 칸 번호 " + str(gkc) + "는 범위 밖")
+            except ValueError as e:
+                messagebox.showerror("입력 오류", str(e)); return
+
         self.result = {
             'players': players, 'cells': cells, 'question_cells': question_cells,
+            'golden_key_cells': golden_key_cells,
             'dice_max': dice_max, 'target_laps': target_laps,
             'question_file': self.var_qfile.get(),
             'board_title': self.vars['board_title'].get(),
@@ -236,6 +265,7 @@ class BoardGameApp:
 
         self.settings = {
             'players': 2, 'cells': 20, 'question_cells': [3, 7, 11, 15],
+            'golden_key_cells': [5, 13],
             'dice_max': 6, 'target_laps': 3, 'question_file': 'questions.txt',
             'board_title': '부루마블', 'board_subtitle': '보드게임',
         }
@@ -453,7 +483,7 @@ class BoardGameApp:
         self.dice_result = 0
         self._update_dice_label()
         self._update_laps()
-        self._check_question()
+        self._check_cell_action()
         self.draw_board()
         self._check_win(p)
 
@@ -476,7 +506,7 @@ class BoardGameApp:
             self.manual_mode = False
             self.lbl_manual.config(text="")
             self._update_laps()
-            self._check_question()
+            self._check_cell_action()
             self.draw_board()
             self._check_win(p)
 
@@ -506,9 +536,24 @@ class BoardGameApp:
             self.draw_board()
             messagebox.showinfo("승리!", "플레이어 " + str(pi + 1) + " 이(가) " + str(t) + "바퀴 완주! 승리!")
 
-    def _check_question(self):
+    def _check_cell_action(self):
         pos = self.player_positions[self.current_player]
-        self.btn_question.config(state='normal' if pos in self.settings['question_cells'] else 'disabled')
+        qcells = set(self.settings['question_cells'])
+        gkcells = set(self.settings.get('golden_key_cells', []))
+        self.btn_question.config(state='normal' if pos in qcells else 'disabled')
+        if pos in gkcells:
+            self.root.after(GOLDEN_KEY_POPUP_DELAY_MS, self._show_golden_key_event)
+
+    def _show_golden_key_event(self):
+        event = random.choice(GOLDEN_KEY_EVENTS)
+        win = tk.Toplevel(self.root)
+        win.title("황금 열쇠")
+        win.geometry("400x220")
+        win.resizable(False, False)
+        win.grab_set()
+        tk.Label(win, text="[ 황금 열쇠 ]", font=(FONT_NAME, 16, 'bold'), fg='#FF8C00').pack(pady=(20, 5))
+        tk.Label(win, text=event, font=(FONT_NAME, 12), wraplength=360).pack(padx=20, pady=10)
+        tk.Button(win, text="확인", command=win.destroy, width=10).pack(pady=10)
 
     def show_question(self):
         if not self.questions:
@@ -589,6 +634,7 @@ class BoardGameApp:
 
         total = self.settings['cells']
         qcells = set(self.settings['question_cells'])
+        gkcells = set(self.settings.get('golden_key_cells', []))
 
         margin = 15
         max_cs = 200 * self.zoom_level
@@ -602,6 +648,8 @@ class BoardGameApp:
                 fill, ol = '#FFD700', '#B8860B'
             elif i in qcells:
                 fill, ol = '#FF6B6B', '#CC0000'
+            elif i in gkcells:
+                fill, ol = '#FFB347', '#FF8C00'
             else:
                 fill, ol = '#FFFFFF', '#999999'
 
@@ -617,6 +665,9 @@ class BoardGameApp:
             elif i in qcells:
                 self.canvas.create_text(x + w / 2, y + h - w * 0.15,
                                          text="문제", font=(FONT_NAME, fs_lbl, 'bold'), fill='#CC0000')
+            elif i in gkcells:
+                self.canvas.create_text(x + w / 2, y + h - w * 0.15,
+                                         text="황금열쇠", font=(FONT_NAME, fs_lbl, 'bold'), fill='#CC6600')
 
         # 장기말
         pos_groups = {}
